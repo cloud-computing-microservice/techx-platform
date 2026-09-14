@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { createCatalogServer } from "../../catalog-api/src/server.js";
 import { CatalogClient } from "../../order-api/src/catalog-client.js";
+import { FakeOrderRepository } from "../../order-api/src/order-store.js";
 import { createOrderServer } from "../../order-api/src/server.js";
 import { GET as getProducts } from "../app/api/products/route";
 import { POST as createOrder } from "../app/api/orders/route";
@@ -39,6 +40,8 @@ describe("frontend BFF with real local services", () => {
     orderServer = createOrderServer({
       apiKey,
       catalogClient: new CatalogClient({ baseUrl: catalogUrl, retries: 0 }),
+      repository: new FakeOrderRepository(60_000, 60_000),
+      orderTtlMs: 60_000,
       logger: () => undefined,
     });
     process.env.CATALOG_API_URL = catalogUrl;

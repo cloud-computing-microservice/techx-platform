@@ -7,6 +7,86 @@ import type {
   ShippingAddressInput,
 } from "./types.js";
 
+export type IdempotencyLookup =
+  { kind: "miss" } | { kind: "conflict" } | { kind: "hit"; order: Order };
+
+export interface CreateOrderRequest {
+  items: OrderItem[];
+  customer: CustomerInput;
+  shippingAddress: ShippingAddressInput;
+  idempotencyKey: string;
+  payloadHash: string;
+}
+
+export interface CreateOrderResult {
+  order: Order;
+  idempotentReplay: boolean;
+}
+
+export interface OrderRepository {
+  find(id: string): Promise<Order | undefined>;
+  lookupIdempotency(
+    key: string,
+    payloadHash: string,
+  ): Promise<IdempotencyLookup>;
+  create(request: CreateOrderRequest): Promise<CreateOrderResult>;
+}
+
+export class RepositoryUnavailableError extends Error {
+  constructor(
+    message = "Order repository is unavailable.",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "RepositoryUnavailableError";
+  }
+}
+
+export class IdempotencyConflictError extends Error {
+  constructor() {
+    super("Idempotency-Key was reused with a different payload.");
+    this.name = "IdempotencyConflictError";
+  }
+}
+
+export function buildOrder(
+  items: OrderItem[],
+  customer: CustomerInput,
+  shippingAddress: ShippingAddressInput,
+  orderTtlMs: number,
+  createdAtMs: number,
+  id = `ord_${randomUUID()}`,
+): Order {
+  const expiresAtMs = createdAtMs + orderTtlMs;
+  const subtotalCents = items.reduce(
+    (sum, item) => sum + item.lineTotalCents,
+    0,
+  );
+  const shippingCents = shippingCentsFor(subtotalCents);
+  return {
+    id,
+    items,
+    customer: { name: customer.name, emailMasked: maskEmail(customer.email) },
+    shippingAddress: {
+      city: shippingAddress.city,
+      region: shippingAddress.region,
+      postalCode: shippingAddress.postalCode,
+      countryCode: shippingAddress.countryCode,
+    },
+    status: "confirmed",
+    shippingMethod: "standard",
+    estimatedDelivery: {
+      from: addBusinessDays(createdAtMs, 3).toISOString(),
+      to: addBusinessDays(createdAtMs, 5).toISOString(),
+    },
+    subtotalCents,
+    shippingCents,
+    totalCents: subtotalCents + shippingCents,
+    createdAt: new Date(createdAtMs).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString(),
+  };
+}
+
 interface StoredOrder {
   order: Order;
   expiresAtMs: number;
@@ -18,94 +98,69 @@ interface IdempotencyRecord {
   expiresAtMs: number;
 }
 
-export type IdempotencyLookup =
-  { kind: "miss" } | { kind: "conflict" } | { kind: "hit"; order: Order };
-
-export class OrderStore {
+/** Async fake for tests. Production startup always injects DynamoDbOrderRepository. */
+export class FakeOrderRepository implements OrderRepository {
   readonly #orders = new Map<string, StoredOrder>();
   readonly #idempotency = new Map<string, IdempotencyRecord>();
 
   constructor(
-    readonly ttlMs: number,
-    private readonly maxRecords: number,
+    readonly orderTtlMs: number,
+    readonly idempotencyTtlMs: number,
     private readonly now: () => number = Date.now,
   ) {
-    if (!Number.isInteger(ttlMs) || ttlMs < 1_000)
+    if (!Number.isInteger(orderTtlMs) || orderTtlMs < 1_000)
       throw new Error("Order TTL must be at least one second.");
-    if (!Number.isInteger(maxRecords) || maxRecords < 1)
-      throw new Error("Order max records must be positive.");
+    if (!Number.isInteger(idempotencyTtlMs) || idempotencyTtlMs < 1_000)
+      throw new Error("Idempotency TTL must be at least one second.");
   }
 
-  get size(): number {
-    this.#prune();
-    return this.#orders.size;
-  }
-
-  find(id: string): Order | undefined {
+  async find(id: string): Promise<Order | undefined> {
     this.#prune();
     return this.#orders.get(id)?.order;
   }
 
-  lookupIdempotency(key: string, payloadHash: string): IdempotencyLookup {
+  async lookupIdempotency(
+    key: string,
+    payloadHash: string,
+  ): Promise<IdempotencyLookup> {
     this.#prune();
     const record = this.#idempotency.get(key);
     if (!record) return { kind: "miss" };
     if (record.payloadHash !== payloadHash) return { kind: "conflict" };
     const order = this.#orders.get(record.orderId)?.order;
-    if (!order) {
-      this.#idempotency.delete(key);
-      return { kind: "miss" };
-    }
+    if (!order) throw new RepositoryUnavailableError();
     return { kind: "hit", order };
   }
 
-  create(
-    items: OrderItem[],
-    customer: CustomerInput,
-    shippingAddress: ShippingAddressInput,
-    idempotencyKey: string,
-    payloadHash: string,
-  ): Order {
+  async create(request: CreateOrderRequest): Promise<CreateOrderResult> {
     this.#prune();
-    while (this.#orders.size >= this.maxRecords) this.#evictOldest();
+    const existing = this.#idempotency.get(request.idempotencyKey);
+    if (existing) {
+      if (existing.payloadHash !== request.payloadHash)
+        throw new IdempotencyConflictError();
+      const order = this.#orders.get(existing.orderId)?.order;
+      if (!order) throw new RepositoryUnavailableError();
+      return { order, idempotentReplay: true };
+    }
 
     const createdAtMs = this.now();
-    const expiresAtMs = createdAtMs + this.ttlMs;
-    const subtotalCents = items.reduce(
-      (sum, item) => sum + item.lineTotalCents,
-      0,
+    const order = buildOrder(
+      request.items,
+      request.customer,
+      request.shippingAddress,
+      this.orderTtlMs,
+      createdAtMs,
     );
-    const shippingCents = shippingCentsFor(subtotalCents);
-    const order: Order = {
-      id: `ord_${randomUUID()}`,
-      items,
-      customer: { name: customer.name, emailMasked: maskEmail(customer.email) },
-      shippingAddress: {
-        city: shippingAddress.city,
-        region: shippingAddress.region,
-        postalCode: shippingAddress.postalCode,
-        countryCode: shippingAddress.countryCode,
-      },
-      status: "confirmed",
-      shippingMethod: "standard",
-      estimatedDelivery: {
-        from: addBusinessDays(createdAtMs, 3).toISOString(),
-        to: addBusinessDays(createdAtMs, 5).toISOString(),
-      },
-      subtotalCents,
-      shippingCents,
-      totalCents: subtotalCents + shippingCents,
-      createdAt: new Date(createdAtMs).toISOString(),
-      expiresAt: new Date(expiresAtMs).toISOString(),
-    };
-
-    this.#orders.set(order.id, { order, expiresAtMs });
-    this.#idempotency.set(idempotencyKey, {
-      payloadHash,
-      orderId: order.id,
-      expiresAtMs,
+    this.#orders.set(order.id, {
+      order,
+      expiresAtMs: createdAtMs + this.orderTtlMs,
     });
-    return order;
+    this.#idempotency.set(request.idempotencyKey, {
+      payloadHash: request.payloadHash,
+      orderId: order.id,
+      expiresAtMs: createdAtMs + this.idempotencyTtlMs,
+    });
+    return { order, idempotentReplay: false };
   }
 
   #prune(): void {
@@ -114,17 +169,7 @@ export class OrderStore {
       if (record.expiresAtMs <= now) this.#orders.delete(id);
     }
     for (const [key, record] of this.#idempotency) {
-      if (record.expiresAtMs <= now || !this.#orders.has(record.orderId))
-        this.#idempotency.delete(key);
-    }
-  }
-
-  #evictOldest(): void {
-    const oldestId = this.#orders.keys().next().value as string | undefined;
-    if (!oldestId) return;
-    this.#orders.delete(oldestId);
-    for (const [key, record] of this.#idempotency) {
-      if (record.orderId === oldestId) this.#idempotency.delete(key);
+      if (record.expiresAtMs <= now) this.#idempotency.delete(key);
     }
   }
 }

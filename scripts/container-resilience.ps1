@@ -95,15 +95,14 @@ finally {
 & "$PSScriptRoot/container-smoke.ps1" -BaseUrl $BaseUrl
 Write-Host 'Catalog dependency failure returned bounded 503 and recovered.'
 
-# Order is intentionally in-memory: a restart must recover service health but lose prior orders.
+# DynamoDB owns order state: an Order restart must recover health and preserve lookup.
 docker compose restart --timeout 10 order-api
-if ($LASTEXITCODE -ne 0) { throw 'Could not restart Order for the in-memory recovery test.' }
+if ($LASTEXITCODE -ne 0) { throw 'Could not restart Order for the persistence recovery test.' }
 Wait-Healthy 'order-api'
 $lookup = Invoke-WebRequest -Uri "$BaseUrl/api/orders/$orderId" -TimeoutSec 8 -SkipHttpErrorCheck
-$lookupBody = $lookup.Content | ConvertFrom-Json
-if ($lookup.StatusCode -ne 404 -or $lookupBody.error.code -ne 'ORDER_NOT_FOUND') {
-  throw "Order restart expected documented ORDER_NOT_FOUND/404; received $($lookup.StatusCode)."
+if ($lookup.StatusCode -ne 200) {
+  throw "Order restart expected persisted lookup/200; received $($lookup.StatusCode)."
 }
 & "$PSScriptRoot/container-smoke.ps1" -BaseUrl $BaseUrl
-Write-Host 'Order restart recovered service health and exhibited the documented in-memory data-loss behavior.'
+Write-Host 'Order restart recovered service health and preserved DynamoDB-backed order data.'
 Write-Host "Container resilience acceptance passed (request ID prefix: $requestId)."

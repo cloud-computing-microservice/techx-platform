@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-demo-key": apiKey,
+        "x-techx-api-key": apiKey,
         "idempotency-key":
           request.headers.get("idempotency-key") ?? randomUUID(),
       },

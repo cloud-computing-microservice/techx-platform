@@ -3,7 +3,10 @@ import { after, before, test } from "node:test";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { CatalogClient } from "../src/catalog-client.js";
-import { OrderStore } from "../src/order-store.js";
+import {
+  FakeOrderRepository,
+  RepositoryUnavailableError,
+} from "../src/order-store.js";
 import { createOrderServer } from "../src/server.js";
 
 const API_KEY = "test-demo-key";
@@ -104,7 +107,8 @@ before(async () => {
       timeoutMs: 250,
       retries: 0,
     }),
-    store: new OrderStore(60_000, 100),
+    repository: new FakeOrderRepository(60_000, 60_000),
+    orderTtlMs: 60_000,
     logger: () => undefined,
   });
   await new Promise<void>((resolve) =>
@@ -130,7 +134,7 @@ function orderRequest(body: unknown, key: string): Promise<Response> {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-demo-key": API_KEY,
+      "x-techx-api-key": API_KEY,
       "idempotency-key": key,
     },
     body: JSON.stringify(body),
@@ -168,13 +172,50 @@ test("health endpoints do not require authentication", async () => {
   assert.equal(configBody.config.orderTtlSeconds, 60);
 });
 
-test("requires the demo key for order endpoints", async () => {
+test("requires the internal API key for order endpoints", async () => {
   const response = await fetch(
     `${orderBaseUrl}/api/orders/ord_00000000-0000-0000-0000-000000000000`,
   );
   const body = (await response.json()) as { error: { code: string } };
   assert.equal(response.status, 401);
   assert.equal(body.error.code, "UNAUTHORIZED");
+});
+
+test("maps repository unavailability to 503", async () => {
+  const unavailableServer = createOrderServer({
+    apiKey: API_KEY,
+    catalogClient: new CatalogClient({ baseUrl: "http://127.0.0.1:1" }),
+    repository: {
+      find: async () => {
+        throw new RepositoryUnavailableError();
+      },
+      lookupIdempotency: async () => {
+        throw new RepositoryUnavailableError();
+      },
+      create: async () => {
+        throw new RepositoryUnavailableError();
+      },
+    },
+    orderTtlMs: 60_000,
+    logger: () => undefined,
+  });
+  await new Promise<void>((resolve) =>
+    unavailableServer.listen(0, "127.0.0.1", resolve),
+  );
+  try {
+    const address = unavailableServer.address() as AddressInfo;
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/orders/ord_00000000-0000-0000-0000-000000000000`,
+      { headers: { "x-techx-api-key": API_KEY } },
+    );
+    const body = (await response.json()) as { error: { code: string } };
+    assert.equal(response.status, 503);
+    assert.equal(body.error.code, "ORDER_REPOSITORY_UNAVAILABLE");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      unavailableServer.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
 });
 
 test("creates an atomic multi-item order and merges duplicate items", async () => {
@@ -212,7 +253,7 @@ test("creates an atomic multi-item order and merges duplicate items", async () =
   assert.equal(body.order.totalCents, 3_199);
 
   const lookup = await fetch(`${orderBaseUrl}/api/orders/${body.order.id}`, {
-    headers: { "x-demo-key": API_KEY },
+    headers: { "x-techx-api-key": API_KEY },
   });
   assert.equal(lookup.status, 200);
 });
@@ -318,7 +359,7 @@ test("propagates request ids without logging secrets", async () => {
     `${orderBaseUrl}/api/orders/ord_00000000-0000-0000-0000-000000000000`,
     {
       headers: {
-        "x-demo-key": API_KEY,
+        "x-techx-api-key": API_KEY,
         "x-request-id": "order-request-id",
       },
     },

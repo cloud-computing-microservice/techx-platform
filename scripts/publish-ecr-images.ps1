@@ -15,7 +15,7 @@ if ($LASTEXITCODE -ne 0 -or $identity.Account -ne $ExpectedAccountId) {
 }
 $shortSha = (git -C $root rev-parse --short=12 HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $shortSha -notmatch '^[0-9a-f]{12}$') { throw 'Unable to resolve the application commit.' }
-$tag = "demo-$shortSha"
+$tag = "staging-$shortSha"
 $registry = "$ExpectedAccountId.dkr.ecr.$Region.amazonaws.com"
 $images = [ordered]@{
   frontend = 'src/frontend/Dockerfile'
