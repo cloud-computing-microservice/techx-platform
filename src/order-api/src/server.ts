@@ -7,7 +7,12 @@ import {
 } from "node:http";
 import { CatalogUnavailableError } from "./catalog-client.js";
 import type { CatalogClient } from "./catalog-client.js";
-import { OrderStore } from "./order-store.js";
+import {
+  IdempotencyConflictError,
+  RepositoryUnavailableError,
+  type CreateOrderResult,
+  type OrderRepository,
+} from "./order-store.js";
 import {
   MAX_ORDER_LINES,
   MAX_QUANTITY_PER_ITEM,
@@ -17,7 +22,6 @@ import type {
   CreateOrderInput,
   CustomerInput,
   ErrorEnvelope,
-  Order,
   OrderItem,
   OrderItemInput,
   ShippingAddressInput,
@@ -30,7 +34,8 @@ type Logger = (record: Record<string, unknown>) => void;
 export interface OrderServerOptions {
   apiKey: string;
   catalogClient: CatalogClient;
-  store?: OrderStore;
+  repository: OrderRepository;
+  orderTtlMs: number;
   logger?: Logger;
 }
 
@@ -86,7 +91,7 @@ function normalizePath(url: string | undefined): string {
 }
 
 function hasValidApiKey(request: IncomingMessage, expected: string): boolean {
-  const provided = request.headers["x-demo-key"];
+  const provided = request.headers["x-techx-api-key"];
   if (typeof provided !== "string") return false;
   const providedBuffer = Buffer.from(provided);
   const expectedBuffer = Buffer.from(expected);
@@ -362,10 +367,11 @@ function validateIdempotencyKey(request: IncomingMessage): string {
 export function createOrderServer(options: OrderServerOptions): Server {
   if (options.apiKey.length < 8)
     throw new Error("ORDER_API_KEY must contain at least 8 characters.");
+  if (!Number.isInteger(options.orderTtlMs) || options.orderTtlMs < 1_000)
+    throw new Error("Order TTL must be at least one second.");
   const logger =
     options.logger ?? ((record) => console.log(JSON.stringify(record)));
-  const store = options.store ?? new OrderStore(3_600_000, 1_000);
-  const inFlight = new Map<string, { hash: string; promise: Promise<Order> }>();
+  const repository = options.repository;
   let ready = true;
 
   async function createOrder(
@@ -373,7 +379,7 @@ export function createOrderServer(options: OrderServerOptions): Server {
     key: string,
     hash: string,
     requestId: string,
-  ): Promise<Order> {
+  ): Promise<CreateOrderResult> {
     const products = await Promise.all(
       input.items.map(async (item) => {
         const product = await options.catalogClient.getProduct(
@@ -412,13 +418,13 @@ export function createOrderServer(options: OrderServerOptions): Server {
       unitPriceCents: product.priceCents,
       lineTotalCents: product.priceCents * item.quantity,
     }));
-    return store.create(
-      orderItems,
-      input.customer,
-      input.shippingAddress,
-      key,
-      hash,
-    );
+    return repository.create({
+      items: orderItems,
+      customer: input.customer,
+      shippingAddress: input.shippingAddress,
+      idempotencyKey: key,
+      payloadHash: hash,
+    });
   }
 
   const server = createServer(
@@ -475,7 +481,7 @@ export function createOrderServer(options: OrderServerOptions): Server {
           sendJson(
             response,
             200,
-            { config: storeConfig(store.ttlMs) },
+            { config: storeConfig(options.orderTtlMs) },
             requestId,
           );
           return;
@@ -485,7 +491,7 @@ export function createOrderServer(options: OrderServerOptions): Server {
           throw new HttpError(
             401,
             "UNAUTHORIZED",
-            "A valid X-Demo-Key header is required.",
+            "A valid X-TechX-Api-Key header is required.",
           );
         }
 
@@ -493,7 +499,7 @@ export function createOrderServer(options: OrderServerOptions): Server {
           const key = validateIdempotencyKey(request);
           const input = parseOrder(await readJsonBody(request));
           const hash = payloadHash(input);
-          const stored = store.lookupIdempotency(key, hash);
+          const stored = await repository.lookupIdempotency(key, hash);
           if (stored.kind === "conflict")
             throw new HttpError(
               409,
@@ -510,43 +516,19 @@ export function createOrderServer(options: OrderServerOptions): Server {
             return;
           }
 
-          const pending = inFlight.get(key);
-          if (pending) {
-            if (pending.hash !== hash)
-              throw new HttpError(
-                409,
-                "IDEMPOTENCY_CONFLICT",
-                "Idempotency-Key is already processing a different payload.",
-              );
-            const order = await pending.promise;
-            sendJson(
-              response,
-              200,
-              { order, idempotentReplay: true },
-              requestId,
-            );
-            return;
-          }
-
-          const promise = createOrder(input, key, hash, requestId);
-          inFlight.set(key, { hash, promise });
-          try {
-            const order = await promise;
-            sendJson(
-              response,
-              201,
-              { order, idempotentReplay: false },
-              requestId,
-            );
-          } finally {
-            inFlight.delete(key);
-          }
+          const created = await createOrder(input, key, hash, requestId);
+          sendJson(
+            response,
+            created.idempotentReplay ? 200 : 201,
+            created,
+            requestId,
+          );
           return;
         }
 
         const orderMatch = path.match(/^\/api\/orders\/(ord_[0-9a-f-]+)$/i);
         if (request.method === "GET" && orderMatch) {
-          const order = store.find(orderMatch[1] ?? "");
+          const order = await repository.find(orderMatch[1] ?? "");
           if (!order)
             throw new HttpError(
               404,
@@ -575,6 +557,26 @@ export function createOrderServer(options: OrderServerOptions): Server {
               503,
               "CATALOG_UNAVAILABLE",
               "Catalog dependency is unavailable.",
+            ),
+            requestId,
+          );
+        } else if (error instanceof IdempotencyConflictError) {
+          sendError(
+            response,
+            new HttpError(
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "Idempotency-Key was reused with a different payload.",
+            ),
+            requestId,
+          );
+        } else if (error instanceof RepositoryUnavailableError) {
+          sendError(
+            response,
+            new HttpError(
+              503,
+              "ORDER_REPOSITORY_UNAVAILABLE",
+              "Order persistence is unavailable.",
             ),
             requestId,
           );

@@ -20,23 +20,23 @@ This table is the handoff contract copied verbatim across `techx-platform`,
 copies, every affected consumer, and the corresponding tests in one coordinated
 change.
 
-| Contract item        | Locked value                                                                                                                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| AWS region           | `us-east-1`                                                                                                                                                                                      |
-| Kubernetes namespace | `techx-demo`                                                                                                                                                                                     |
-| Services / ports     | `frontend:3000`, `catalog-api:3001`, `order-api:3002`                                                                                                                                            |
-| Cluster DNS          | `frontend.techx-demo.svc.cluster.local:3000`, `catalog-api.techx-demo.svc.cluster.local:3001`, `order-api.techx-demo.svc.cluster.local:3002`                                                     |
-| Secret / key         | Secret `techx-demo-secrets`, data key `order-api-key`; injected as `ORDER_API_KEY` only into frontend and Order                                                                                  |
-| Runtime environment  | Frontend: `CATALOG_API_URL`, `ORDER_API_URL`, `ORDER_API_KEY`; Catalog: `CATALOG_PORT`; Order: `ORDER_PORT`, `CATALOG_API_URL`, `ORDER_API_KEY`, `ORDER_STORE_TTL_MS`, `ORDER_STORE_MAX_RECORDS` |
-| Health / readiness   | Every service exposes unauthenticated `GET /healthz` and `GET /readyz`                                                                                                                           |
-| Order store          | In-memory, TTL `3600000` ms, maximum `1000` records; restart intentionally loses orders and idempotency records                                                                                  |
-| Pricing              | Catalog price snapshot; shipping `999` cents below subtotal `5000`, otherwise free; `totalCents = subtotalCents + shippingCents`                                                                 |
-| Images               | `058114477594.dkr.ecr.us-east-1.amazonaws.com/techx/frontend:demo-{short-sha}`, `.../techx/catalog:demo-{short-sha}`, `.../techx/order:demo-{short-sha}`                                         |
-| Exposure             | CloudFront is the only public entry point and reaches one internal ALB through a VPC origin; Catalog, Order, and Argo CD remain `ClusterIP` services                                             |
-| Public URL           | `https://shop.dinhminhkhoa.id.vn/`; public `/argocd` and `/argocd/*` return `403`                                                                                                                |
-| Private operator URL | The same hostname resolves to the internal ALB over AWS Client VPN; Argo CD is available only at `https://shop.dinhminhkhoa.id.vn/argocd/`                                                       |
-| DNS and TLS          | Cloudflare owns public DNS, Route 53 provides the private split-view record, and one issued ACM certificate covers the storefront hostname                                                       |
-| Network boundary     | One internal ALB serves frontend and Argo CD; only CloudFront may use HTTP `80`, only the Client VPN association security group may use HTTPS `443`                                              |
+| Contract item        | Locked value                                                                                                                                                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AWS region           | `us-east-1`                                                                                                                                                                                                                         |
+| Kubernetes namespace | `techx-staging`                                                                                                                                                                                                                     |
+| Services / ports     | `frontend:3000`, `catalog-api:3001`, `order-api:3002`                                                                                                                                                                               |
+| Cluster DNS          | `frontend.techx-staging.svc.cluster.local:3000`, `catalog-api.techx-staging.svc.cluster.local:3001`, `order-api.techx-staging.svc.cluster.local:3002`                                                                               |
+| Secret / key         | Secret `techx-staging-secrets`, data key `order-api-key`; injected as `ORDER_API_KEY` only into frontend and Order                                                                                                                  |
+| Runtime environment  | Frontend: `CATALOG_API_URL`, `ORDER_API_URL`, `ORDER_API_KEY`; Catalog: `CATALOG_PORT`; Order: `ORDER_PORT`, `CATALOG_API_URL`, `ORDER_API_KEY`, `ORDER_TABLE_NAME`, `AWS_REGION`, `ORDER_STORE_TTL_MS`, `ORDER_IDEMPOTENCY_TTL_MS` |
+| Health / readiness   | Every service exposes unauthenticated `GET /healthz` and `GET /readyz`                                                                                                                                                              |
+| Order store          | DynamoDB single-table persistence; orders retained 30 days, idempotency records 24 hours; TTL is enforced by the application and DynamoDB cleanup                                                                                   |
+| Pricing              | Catalog price snapshot; shipping `999` cents below subtotal `5000`, otherwise free; `totalCents = subtotalCents + shippingCents`                                                                                                    |
+| Images               | `058114477594.dkr.ecr.us-east-1.amazonaws.com/techx/frontend:staging-{short-sha}`, `.../techx/catalog:staging-{short-sha}`, `.../techx/order:staging-{short-sha}`                                                                   |
+| Exposure             | CloudFront is the only public entry point and reaches one internal ALB through a VPC origin; Catalog, Order, and Argo CD remain `ClusterIP` services                                                                                |
+| Public URL           | `https://shop.dinhminhkhoa.id.vn/`; public `/argocd` and `/argocd/*` return `403`                                                                                                                                                   |
+| Private operator URL | The same hostname resolves to the internal ALB over AWS Client VPN; Argo CD is available only at `https://shop.dinhminhkhoa.id.vn/argocd/`                                                                                          |
+| DNS and TLS          | Cloudflare owns public DNS, Route 53 provides the private split-view record, and one issued ACM certificate covers the storefront hostname                                                                                          |
+| Network boundary     | One internal ALB serves frontend and Argo CD; only CloudFront may use HTTP `80`, only the Client VPN association security group may use HTTPS `443`                                                                                 |
 
 The browser talks only to same-origin frontend routes. `ORDER_API_KEY` remains
 server-side and is added by the frontend BFF when it calls Order API.
@@ -64,11 +64,12 @@ through `GET /api/store-config`; the response locks subtotal, shipping, total,
 status, and estimated demo delivery dates. Only masked email and coarse destination
 data are retained. The frontend never requests or processes card details.
 
-Order endpoints require `X-Demo-Key`. Create-order also requires an
+Order endpoints require `X-TechX-Api-Key`. Create-order also requires an
 `Idempotency-Key` of 8–128 characters. Repeating the same key and normalized
 payload returns the original order; using the key with a different payload
-returns `409`. Orders and idempotency records expire together after the
-configured TTL and are intentionally lost when the Order process/pod restarts.
+returns `409`. Orders expire after 30 days by default and idempotency records
+after 24 hours. DynamoDB persistence survives Order process restarts; raw
+idempotency keys are SHA-256 hashed before database access and never retained.
 
 Errors use:
 
@@ -87,7 +88,7 @@ Errors use:
 | Successful list, lookup, health, readiness, or idempotent replay        |  `200` |
 | Newly created order                                                     |  `201` |
 | Invalid ID/body/content type/product/quantity/idempotency key           |  `400` |
-| Missing or invalid `X-Demo-Key` on Order API                            |  `401` |
+| Missing or invalid `X-TechX-Api-Key` on Order API                       |  `401` |
 | Product, order, or route not found                                      |  `404` |
 | Unsupported method                                                      |  `405` |
 | Reused idempotency key with a different payload                         |  `409` |
@@ -127,6 +128,12 @@ npm run dev -w @techx/catalog-api
 $env:CATALOG_API_URL='http://localhost:3001'
 $env:ORDER_API_KEY='local-demo-key'
 $env:ORDER_PORT='3002'
+$env:ORDER_TABLE_NAME='techx-orders-local'
+$env:AWS_REGION='us-east-1'
+$env:AWS_ACCESS_KEY_ID='local'
+$env:AWS_SECRET_ACCESS_KEY='local'
+$env:ORDER_LOCAL_MODE='true'
+$env:DYNAMODB_ENDPOINT='http://localhost:8000'
 npm run dev -w @techx/order-api
 
 $env:CATALOG_API_URL='http://localhost:3001'
@@ -135,7 +142,8 @@ $env:ORDER_API_KEY='local-demo-key'
 npm run dev -w @techx/frontend
 ```
 
-Open `http://localhost:3000`. No AWS resources are required for this workflow.
+Start DynamoDB Local first (the Compose workflow below bootstraps it), then open
+`http://localhost:3000`. No AWS cloud resources are required for this workflow.
 Before any later AWS apply, the repository must pass the local verification
 gate:
 
@@ -148,8 +156,10 @@ Developer quality commands are `npm run format`, `npm run format:check`,
 
 ## Container and local end-to-end gate
 
-Docker Compose publishes only the frontend on `http://localhost:3000`; the two
-backend services stay on the internal Compose network. All three images target
+Docker Compose publishes only the frontend on `http://localhost:3000`; both
+backend services and DynamoDB Local stay on the internal Compose network. A
+persistent volume retains local orders and the bootstrap service idempotently
+creates the table and TTL configuration. All three application images target
 `linux/amd64`, run with a numeric non-root UID, drop Linux capabilities, use a
 read-only root filesystem, and receive only bounded writable `tmpfs` mounts.
 
@@ -170,12 +180,11 @@ docker compose down --volumes --remove-orphans
 
 The recovery check restarts Catalog, Order, and frontend one at a time and
 verifies that unrelated containers do not restart. The soak gate accepts `429`
-only during its intentional create-order burst. Order data loss after restarting
-Order is the documented in-memory-store limitation, not a recovery failure.
+only during its intentional create-order burst. Orders and idempotency records
+remain available after an Order restart because DynamoDB Local owns the state.
 The resilience gate concurrently repeats an idempotency key, correlates a safe
-request ID in Order logs, checks that logs do not expose the API key, forces a
-Catalog outage and bounded `503`, verifies recovery, then proves the documented
-loss of an existing order across an Order restart.
+request ID in Order logs, checks that logs do not expose secrets, forces a
+Catalog outage and bounded `503`, and verifies recovery and persisted lookup.
 None of these commands contacts AWS or creates a billable cloud resource.
 
 After a reviewed foundation apply creates the immutable ECR repositories, only
@@ -187,7 +196,7 @@ returns the tag plus registry digests without changing Git:
 ./scripts/publish-ecr-images.ps1 -ExpectedAccountId '<12-digit-account-id>'
 ```
 
-Use the returned `demo-<12-character-commit>` tag in the reviewed chart values
+Use the returned `staging-<12-character-commit>` tag in the reviewed chart values
 before Argo CD sync. Image publication is an AWS mutation and is run only inside
 the approved foundation window.
 

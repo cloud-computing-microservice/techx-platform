@@ -14,7 +14,7 @@ export async function GET(
     `${baseUrl.replace(/\/$/, "")}/api/orders/${encodeURIComponent(id)}`,
     {
       requestId: request.headers.get("x-request-id"),
-      init: { headers: { "x-demo-key": apiKey } },
+      init: { headers: { "x-techx-api-key": apiKey } },
     },
   );
 }
