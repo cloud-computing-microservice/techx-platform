@@ -31,6 +31,10 @@ if ($Push) {
   }
   $origin = (git -C $ChartPath remote get-url origin).Trim() -replace '\.git$', '' -replace '^git@github.com:', 'https://github.com/'
   if ($LASTEXITCODE -ne 0 -or $origin -ne ($application.spec.source.repoURL -replace '\.git$', '')) { throw 'Chart origin does not match the active Argo CD source repository.' }
+  kubectl --context $Context apply -f (Join-Path $ChartPath 'gitops/clusters/staging/application.yaml') | Out-Host
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to reconcile the staging Application contract.' }
+  kubectl --context $Context label namespace techx-staging elbv2.k8s.aws/pod-readiness-gate-inject=enabled --overwrite | Out-Host
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to enable ALB target readiness before rollout.' }
 }
 
 Push-Location $root
@@ -76,6 +80,8 @@ if (-not $Push) {
 }
 git -C $ChartPath push origin HEAD:main
 if ($LASTEXITCODE -ne 0) { throw 'GitOps push failed; rerun after resolving the upstream change.' }
+kubectl --context $Context -n argocd annotate application techx-staging argocd.argoproj.io/refresh=hard --overwrite | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Unable to request immediate GitOps reconciliation.' }
 & (Join-Path $ChartPath 'scripts/aws-acceptance.ps1') -Action WaitRevision -Context $Context -ExpectedRevision $revision -ExpectedImageTag $manifest.tag
 & (Join-Path $ChartPath 'scripts/aws-acceptance.ps1') -Action Baseline -Context $Context -ExposureProfile domainVpn -NetworkView Public -PublicUrl $PublicUrl
 Write-Host "Released $($manifest.tag); GitOps Synced/Healthy and public acceptance passed."
