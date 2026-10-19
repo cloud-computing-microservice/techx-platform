@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS build
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS build
 WORKDIR /workspace
 
 COPY package.json package-lock.json tsconfig.base.json ./
@@ -12,7 +12,7 @@ COPY src/catalog-api/src ./src/catalog-api/src
 COPY src/catalog-api/data ./src/catalog-api/data
 RUN npm run build -w @techx/catalog-api
 
-FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS runtime
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS runtime
 ENV NODE_ENV=production \
     CATALOG_PORT=3001
 WORKDIR /app
