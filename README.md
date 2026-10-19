@@ -99,19 +99,54 @@ Errors use:
 
 ```mermaid
 flowchart LR
-  User --> ALB[Public HTTP ALB]
+  User --> CloudFront[Public HTTPS CloudFront]
+  CloudFront --> ALB[Internal ALB via VPC origin]
   ALB --> Frontend[Next.js frontend/BFF]
   Frontend --> Catalog[Catalog API ClusterIP]
   Frontend --> Order[Order API ClusterIP]
   Order --> Catalog
-  Admin[Operator] -. private port-forward .-> Argo[Argo CD ClusterIP]
+  Order --> DynamoDB[DynamoDB via Gateway endpoint and IRSA]
+  Admin[Operator] --> VPN[Client VPN and private DNS]
+  VPN --> ALB
+  ALB --> Argo[Argo CD private path]
 ```
 
-`PLAN_UI.md` records the implemented ecommerce upgrade and its local acceptance
-gates. UI domain data comes from typed API contracts; navigation/content and
+The workspace `docs/PLAN.md` holds the current cross-repository plan and gates.
+UI domain data comes from typed API contracts; navigation/content and
 design tokens have one centralized owner. `scripts/ui-hardcode-audit.ps1` fails
 verification when a component embeds catalog fixtures, product-specific values,
 inline styles, direct route literals, or unsupported storefront claims.
+
+## Repeatable verification and release
+
+Run the complete local gate without AWS resources with one command:
+
+```powershell
+./scripts/acceptance.ps1
+```
+
+This runs static/unit/build checks, two-client DynamoDB Local integration,
+parallel Docker Bake builds, and an isolated Compose stack with smoke,
+resilience, recovery, soak and hardening checks. The stack uses a unique project
+name and is cleaned up automatically; it does not use AWS credentials.
+
+For an existing AWS staging environment, commit the reviewed source and chart
+changes first. Use the normal AWS credential chain, then:
+
+```powershell
+./scripts/release-staging.ps1 -ExpectedAccountId '058114477594' `
+  -Push -Context 'arn:aws:eks:us-east-1:058114477594:cluster/techx-staging'
+```
+
+The runner verifies the source, resumes missing immutable ECR images, waits for
+vulnerability scans with no HIGH/CRITICAL findings, records full commit/digests
+in the chart's `releases/staging.json`, updates all three image tags, verifies
+the chart, commits/pushes its GitOps release, waits for Synced/Healthy and checks
+the public deployment. Without `-Push`, it prepares and commits chart metadata
+locally. It checks the selected cluster and Argo source before publishing to
+`main`; concurrent upstream changes fail through a normal non-force Git push.
+If deployment fails, the command stops with the release revision available for
+diagnosis and Git revert; it does not report a successful deployment.
 
 ## Development
 

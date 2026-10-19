@@ -18,7 +18,11 @@ and design tokens have centralized owners; production components do not embed
 product fixtures or business-rule magic values. Checkout never requests card
 details and clearly identifies itself as a non-transactional demo.
 
-The BFF applies dependency timeouts and GET retries, forwards request IDs, rate-limits order creation to 20 attempts per client per minute, and maps dependency failures to structured responses. Orders remain ephemeral by design.
+The BFF applies dependency timeouts and GET retries, forwards request IDs,
+rate-limits order creation to 20 attempts per client per minute, and bounds
+request bodies to 16 KiB while streaming. The limiter retains at most 10,000
+client buckets per process. Orders persist in DynamoDB for 30 days by default;
+idempotency records last 24 hours. The frontend stores no database credentials.
 
 Local checks:
 

@@ -36,12 +36,15 @@ if (-not (Test-Path -LiteralPath 'node_modules')) {
 
 & "$PSScriptRoot\ui-hardcode-audit.ps1"
 
-$tokens = $null
-$parseErrors = $null
-[System.Management.Automation.Language.Parser]::ParseFile(
-  (Join-Path $PSScriptRoot 'publish-ecr-images.ps1'), [ref]$tokens, [ref]$parseErrors
-) | Out-Null
-if ($parseErrors) { throw "publish-ecr-images.ps1 has syntax errors: $($parseErrors.Message -join '; ')" }
+foreach ($script in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1') {
+  $tokens = $null
+  $parseErrors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+  if ($parseErrors) { throw "$($script.Name) has syntax errors: $($parseErrors.Message -join '; ')" }
+}
+& (Join-Path $PSScriptRoot 'test-publish-ecr-images.ps1')
+npm audit --audit-level=high
+if ($LASTEXITCODE -ne 0) { throw 'Dependency audit found HIGH/CRITICAL vulnerabilities or could not complete.' }
 
 npm run check
 if ($LASTEXITCODE -ne 0) { throw 'TypeScript verification failed.' }

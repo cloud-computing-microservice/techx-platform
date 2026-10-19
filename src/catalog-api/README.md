@@ -1,6 +1,6 @@
 # Catalog API
 
-Validated static product catalog HTTP API. The v2 seed contains 12 products with
+Validated static product catalog HTTP API. The v2 seed contains 24 products with
 explicit category, availability, inventory, pricing, specifications, tags, and
 local image metadata. Startup fails fast when seed data is invalid.
 

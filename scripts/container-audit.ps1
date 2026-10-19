@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $services = @('catalog-api', 'order-api', 'frontend')
 
-npm audit --omit=dev --audit-level=critical
+npm audit --omit=dev --audit-level=high
 if ($LASTEXITCODE -ne 0) { throw 'Production dependency audit failed.' }
 
 foreach ($service in $services) {

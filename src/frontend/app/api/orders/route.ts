@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { FixedWindowRateLimiter } from "@/lib/server/rate-limit";
 import { configurationError, proxyJson } from "@/lib/server/proxy";
+import { readRequestBody, RequestBodyError } from "@/lib/server/request-body";
 
 const limiter = new FixedWindowRateLimiter(20, 60_000);
 
@@ -59,13 +60,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.text();
-  if (Buffer.byteLength(body) > 16 * 1024) {
+  let body: string;
+  try {
+    body = await readRequestBody(request);
+  } catch (error) {
+    if (!(error instanceof RequestBodyError)) throw error;
     return NextResponse.json(
       {
         error: {
-          code: "BODY_TOO_LARGE",
-          message: "Request body is too large.",
+          code: error.code,
+          message: error.message,
           requestId: randomUUID(),
         },
       },

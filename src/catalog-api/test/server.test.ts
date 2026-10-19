@@ -63,3 +63,12 @@ test("rejects unsupported methods", async () => {
   const response = await fetch(`${baseUrl}/api/products`, { method: "POST" });
   assert.equal(response.status, 405);
 });
+
+test("malformed URL encoding returns 400 and leaves the server healthy", async () => {
+  for (const id of ["%", "%ZZ", "%E0%A4%A"]) {
+    const response = await fetch(`${baseUrl}/api/products/${id}`);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error.code, "INVALID_PRODUCT_ID");
+  }
+  assert.equal((await fetch(`${baseUrl}/healthz`)).status, 200);
+});

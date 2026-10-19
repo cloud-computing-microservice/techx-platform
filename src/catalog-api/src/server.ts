@@ -143,7 +143,19 @@ export function createCatalogServer(
 
       const productMatch = path.match(/^\/api\/products\/([^/]+)$/);
       if (productMatch) {
-        const id = decodeURIComponent(productMatch[1] ?? "");
+        let id: string;
+        try {
+          id = decodeURIComponent(productMatch[1] ?? "");
+        } catch {
+          sendError(
+            response,
+            400,
+            "INVALID_PRODUCT_ID",
+            "Product ID must use valid URL encoding.",
+            requestId,
+          );
+          return;
+        }
         const product = productsById.get(id);
         if (!product) {
           sendError(
