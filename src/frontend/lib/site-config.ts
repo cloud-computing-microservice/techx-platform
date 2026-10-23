@@ -307,7 +307,7 @@ export const CONTENT = {
       "Your order was accepted. No payment was taken and no parcel will be shipped.",
     lookupTitle: "Look up an order",
     lookupBody:
-      "Paste an order ID to view its item snapshot and confirmation details while it remains in memory.",
+      "Paste an order ID to view its item snapshot and confirmation details before it expires.",
     lookupAction: "Find order",
     notFound: "We could not find that order.",
     invalidId: "Enter a complete order ID beginning with ord_.",

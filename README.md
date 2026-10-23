@@ -1,5 +1,17 @@
 # TechX Platform
 
+Staging release automation is being implemented. `verify.yml` calls reusable
+acceptance and, only on trusted main after successful CI and when
+`AUTOMATION_ENABLED=true`, the release workflow. It requires the `staging-release`
+environment, AWS OIDC publisher role, `STAGING_SESSION_URI`, `RELEASE_APP_ID` and
+`RELEASE_APP_PRIVATE_KEY`, plus a pinned `AUTOMATION_INFRA_SHA`. The job checks
+the live cleanup schedule and holds a renewed S3 CAS lease across publishing
+and chart PR creation. Keep automation disabled until all lifecycle leases,
+independent cleanup, chart branch protections and post-deploy orchestration are
+configured and verified. The workflow publishes immutable ECR images only for
+a valid READY session and proposes a digest-pinned chart PR; it does not create
+EKS or bypass chart review. Missing/unknown session state fails closed.
+
 Minimal internship storefront implementing the end-to-end flow:
 
 `browse products -> manage cart -> confirm order -> look up order`

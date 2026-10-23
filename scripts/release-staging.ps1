@@ -44,19 +44,13 @@ if (-not $manifest.tag -or $manifest.images.Count -ne 3) { throw 'The publisher 
 
 $valuesPath = Join-Path $ChartPath 'values-staging.yaml'
 $originalValues = Get-Content -Raw -LiteralPath $valuesPath
-$updatedValues = $originalValues
-foreach ($entry in $manifest.images) {
-  $repository = $entry.image -replace ':[^:]+$', ''
-  $pattern = '(?m)(repository: ' + [regex]::Escape($repository) + '\r?\n\s+tag: )[^\r\n]+'
-  if ([regex]::Matches($updatedValues, $pattern).Count -ne 1) { throw "Chart repository is missing or ambiguous: $repository" }
-  $updatedValues = [regex]::Replace($updatedValues, $pattern, '${1}' + $manifest.tag)
-}
 $manifestPath = Join-Path $ChartPath 'releases/staging.json'
 $previousManifest = if (Test-Path -LiteralPath $manifestPath) { Get-Content -Raw -LiteralPath $manifestPath } else { $null }
+$temporaryManifest = Join-Path ([IO.Path]::GetTempPath()) "techx-publish-$([guid]::NewGuid()).json"
 try {
-  [IO.File]::WriteAllText($valuesPath, $updatedValues)
-  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $manifestPath) | Out-Null
-  $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+  $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $temporaryManifest -Encoding utf8
+  python (Join-Path $PSScriptRoot 'prepare-chart-release.py') --chart $ChartPath --manifest $temporaryManifest
+  if ($LASTEXITCODE -ne 0) { throw 'Chart digest preparation failed.' }
   Push-Location $ChartPath
   try { & (Join-Path $ChartPath 'scripts/verify.ps1') } finally { Pop-Location }
 } catch {
@@ -64,6 +58,8 @@ try {
   if ($null -ne $previousManifest) { [IO.File]::WriteAllText($manifestPath, $previousManifest) }
   else { Remove-Item -LiteralPath $manifestPath -ErrorAction SilentlyContinue }
   throw
+} finally {
+  Remove-Item -LiteralPath $temporaryManifest -ErrorAction SilentlyContinue
 }
 
 git -C $ChartPath add -- values-staging.yaml releases/staging.json
