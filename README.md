@@ -234,10 +234,12 @@ request ID in Order logs, checks that logs do not expose secrets, forces a
 Catalog outage and bounded `503`, and verifies recovery and persisted lookup.
 None of these commands contacts AWS or creates a billable cloud resource.
 
-After a reviewed foundation apply creates the immutable ECR repositories, only
-a clean, committed worktree may publish the three `linux/amd64` images. The
-guarded helper verifies the AWS account, refuses an existing immutable tag, and
-returns the tag plus registry digests without changing Git:
+After a reviewed foundation apply creates the immutable ECR repositories, the
+manual helper requires a clean, committed worktree to publish the three
+`linux/amd64` images. It verifies the fixed AWS account/region, preserves existing
+immutable images, resumes only missing components and blocks HIGH/CRITICAL scan
+findings. It returns the source tag plus all three registry digests without
+changing Git:
 
 ```powershell
 ./scripts/publish-ecr-images.ps1 -ExpectedAccountId '<12-digit-account-id>'
@@ -246,6 +248,26 @@ returns the tag plus registry digests without changing Git:
 Use the returned `staging-<12-character-commit>` tag in the reviewed chart values
 before Argo CD sync. Image publication is an AWS mutation and is run only inside
 the approved foundation window.
+
+## Cold publish from an admitted archive (source integration)
+
+`ecr-publisher-core.ps1` contains the shared build/push/scan mechanics. The manual
+entry point still checks Git cleanliness and resolves HEAD before calling it;
+it has no skip-clean or caller-supplied commit override.
+
+The separate infra `run_bootstrap_publish.py` entry point authenticates the exact
+admitted S3 bundle version/hash and its three source SHAs. It runs CI on a fresh
+archive and publishes from a second fresh extraction, so generated CI files do
+not enter the image context. Archived source is audited without consulting an
+ancestor Git checkout. The core receives the authenticated full platform SHA and
+emits the same digest manifest used by normal releases.
+
+Cold publish requires the dedicated protected `staging-bootstrap` OIDC role, an
+APPLIED foundation, terminal SSM result, a live cleanup schedule and the separate
+`bootstrap-publish` heartbeat lease in PROVISIONING. Normal release still requires
+READY. The bootstrap role cannot create infrastructure or ECR repositories.
+Workflow wiring, chart release PR/pinned revision selection and cloud acceptance
+remain incomplete; keep automation disabled until the workspace plan gates pass.
 
 ## Attribution
 
