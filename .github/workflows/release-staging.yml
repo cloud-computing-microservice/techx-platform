@@ -1,0 +1,91 @@
+name: Publish staging release PR
+on:
+  workflow_call:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: staging-image-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: staging-release
+    defaults:
+      run:
+        working-directory: techx-platform
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+          path: techx-platform
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: techx-platform/package-lock.json
+      - name: Configure temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@ce2ec50a23cfb8aacf5544bea7a651d803d626f6
+        with:
+          role-to-assume: ${{ vars.AWS_PUBLISHER_ROLE_ARN }}
+          aws-region: us-east-1
+          allowed-account-ids: "058114477594"
+          role-session-name: techx-publish-${{ github.run_id }}
+      - name: Read staging session
+        env:
+          SESSION_URI: ${{ vars.STAGING_SESSION_URI }}
+        run: |
+          test -n "$SESSION_URI"
+          aws s3 cp "$SESSION_URI" "$RUNNER_TEMP/session.json" --only-show-errors
+      - name: Check release window
+        id: session
+        run: python scripts/check-release-session.py "$RUNNER_TEMP/session.json" --verify-aws-schedule --github-output "$GITHUB_OUTPUT"
+      - name: Validate pinned automation revision
+        if: steps.session.outputs.active == 'true'
+        env:
+          INFRA_SHA: ${{ vars.AUTOMATION_INFRA_SHA }}
+        run: '[[ "$INFRA_SHA" =~ ^[a-f0-9]{40}$ ]]'
+      - name: Checkout trusted automation helpers
+        if: steps.session.outputs.active == 'true'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: cloud-computing-microservice/techx-infra
+          ref: ${{ vars.AUTOMATION_INFRA_SHA }}
+          path: techx-infra
+          persist-credentials: false
+      - name: Install build dependencies
+        if: steps.session.outputs.active == 'true'
+        run: |
+          npm ci --ignore-scripts
+          python -m pip install PyYAML==6.0.3
+      - name: Install pinned Helm
+        if: steps.session.outputs.active == 'true'
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+        with:
+          version: v4.1.4
+      - name: Create scoped chart bot token
+        if: steps.session.outputs.active == 'true'
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: cloud-computing-microservice
+          repositories: techx-chart
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Publish and propose release under environment lease
+        if: steps.session.outputs.active == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SOURCE_SHA: ${{ github.sha }}
+          SESSION_ID: ${{ steps.session.outputs.session_id }}
+          SESSION_URI: ${{ vars.STAGING_SESSION_URI }}
+          LEASE_OWNER: ${{ github.repository }}:${{ github.run_id }}:${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bucket=$(python -c 'import os,urllib.parse; u=urllib.parse.urlparse(os.environ["SESSION_URI"]); assert u.scheme=="s3" and u.path=="/automation/staging/session.json" and not u.query and not u.fragment; print(u.netloc)')
+          python ../techx-infra/scripts/leased_command.py --bucket "$bucket" --owner "$LEASE_OWNER" --operation release --session-id "$SESSION_ID" -- pwsh -NoProfile -File scripts/release-to-chart.ps1 -SourceSha "$SOURCE_SHA" -SessionId "$SESSION_ID" -SessionBucket "$bucket" -LeaseOwner "$LEASE_OWNER" -AutomationScripts "$GITHUB_WORKSPACE/techx-infra/scripts"
