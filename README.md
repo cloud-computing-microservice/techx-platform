@@ -275,15 +275,20 @@ archive publisher. Set up main-only `staging-bootstrap`,
 `AUTOMATION_INFRA_SHA` and the chart-scoped release App before authorized activation.
 Keep `LIFECYCLE_ENABLED` false until the complete workspace acceptance gates pass.
 
-After publication, a separate step obtains the chart-only App token and proposes
-the two release files from the admitted baseline. It never merges, rebases or
-updates an existing proposal branch. The immutable proposal receipt binds the
-subsequent selector to the PR head/tree as well as the exact three-image release.
-The source caller is implemented; the opening workflow, full orchestration,
+After publication, preparation uses read-only GitHub access to compare both
+rendered release files with the admitted baseline. A real one-file or two-file
+diff obtains the chart-only App token and proposes the allowed release changes.
+It never merges, rebases or updates an existing proposal branch. When the exact
+release already exists, it writes a session-bound reuse intent without a GitHub
+write or installation token; a separate protected infra workflow previews the
+baseline/digests/deadline and requires a fresh human review before selection.
+Neither case bypasses current source/CI, session, lease or cleanup guards.
+The source caller and opening workflow exist; full callback orchestration,
 promotion/acceptance/rollback and live cloud verification remain incomplete.
 The App token has repository contents/PR write permissions; the fixed helper
-avoids merge operations, while main rulesets and promotion controls still need
-to be configured and accepted before activation.
+avoids merge operations. Main branch protection is configured, while the
+promotion/session gate and live token behavior still need acceptance before
+activation. Keep both automation flags false until those gates pass.
 
 ## Attribution
 
