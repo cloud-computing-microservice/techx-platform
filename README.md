@@ -1,5 +1,17 @@
 # TechX Platform
 
+Staging release automation is being implemented. `verify.yml` calls reusable
+acceptance and, only on trusted main after successful CI and when
+`AUTOMATION_ENABLED=true`, the release workflow. It requires the `staging-release`
+environment, AWS OIDC publisher role, `STAGING_SESSION_URI`, `RELEASE_APP_ID` and
+`RELEASE_APP_PRIVATE_KEY`, plus a pinned `AUTOMATION_INFRA_SHA`. The job checks
+the live cleanup schedule and holds a renewed S3 CAS lease across publishing
+and chart PR creation. Keep automation disabled until all lifecycle leases,
+independent cleanup, chart branch protections and post-deploy orchestration are
+configured and verified. The workflow publishes immutable ECR images only for
+a valid READY session and proposes a digest-pinned chart PR; it does not create
+EKS or bypass chart review. Missing/unknown session state fails closed.
+
 Minimal internship storefront implementing the end-to-end flow:
 
 `browse products -> manage cart -> confirm order -> look up order`
@@ -222,10 +234,12 @@ request ID in Order logs, checks that logs do not expose secrets, forces a
 Catalog outage and bounded `503`, and verifies recovery and persisted lookup.
 None of these commands contacts AWS or creates a billable cloud resource.
 
-After a reviewed foundation apply creates the immutable ECR repositories, only
-a clean, committed worktree may publish the three `linux/amd64` images. The
-guarded helper verifies the AWS account, refuses an existing immutable tag, and
-returns the tag plus registry digests without changing Git:
+After a reviewed foundation apply creates the immutable ECR repositories, the
+manual helper requires a clean, committed worktree to publish the three
+`linux/amd64` images. It verifies the fixed AWS account/region, preserves existing
+immutable images, resumes only missing components and blocks HIGH/CRITICAL scan
+findings. It returns the source tag plus all three registry digests without
+changing Git:
 
 ```powershell
 ./scripts/publish-ecr-images.ps1 -ExpectedAccountId '<12-digit-account-id>'
@@ -234,6 +248,42 @@ returns the tag plus registry digests without changing Git:
 Use the returned `staging-<12-character-commit>` tag in the reviewed chart values
 before Argo CD sync. Image publication is an AWS mutation and is run only inside
 the approved foundation window.
+
+## Cold publish from an admitted archive (source integration)
+
+`ecr-publisher-core.ps1` contains the shared build/push/scan mechanics. The manual
+entry point still checks Git cleanliness and resolves HEAD before calling it;
+it has no skip-clean or caller-supplied commit override.
+
+The separate infra `run_bootstrap_publish.py` entry point authenticates the exact
+admitted S3 bundle version/hash and its three source SHAs. It runs CI on a fresh
+archive and publishes from a second fresh extraction, so generated CI files do
+not enter the image context. Archived source is audited without consulting an
+ancestor Git checkout. The core receives the authenticated full platform SHA and
+emits the same digest manifest used by normal releases.
+
+Cold publish requires the dedicated protected `staging-bootstrap` OIDC role, an
+APPLIED foundation, successful CodeBuild/SSM results, a live cleanup schedule and the separate
+`bootstrap-publish` heartbeat lease in PROVISIONING. Normal release still requires
+READY. The bootstrap role cannot create infrastructure or ECR repositories.
+
+The gated `bootstrap-staging.yml` workflow accepts an existing session ID and
+immutable execution VersionId. It verifies the real first-attempt main run at the
+admitted platform SHA and the latest passing platform CI, then calls the infra
+archive publisher. Set up main-only `staging-bootstrap`,
+`AWS_BOOTSTRAP_PUBLISHER_ROLE_ARN`, `TECHX_STATE_BUCKET`, the exact reviewed
+`AUTOMATION_INFRA_SHA` and the chart-scoped release App before authorized activation.
+Keep `LIFECYCLE_ENABLED` false until the complete workspace acceptance gates pass.
+
+After publication, a separate step obtains the chart-only App token and proposes
+the two release files from the admitted baseline. It never merges, rebases or
+updates an existing proposal branch. The immutable proposal receipt binds the
+subsequent selector to the PR head/tree as well as the exact three-image release.
+The source caller is implemented; the opening workflow, full orchestration,
+promotion/acceptance/rollback and live cloud verification remain incomplete.
+The App token has repository contents/PR write permissions; the fixed helper
+avoids merge operations, while main rulesets and promotion controls still need
+to be configured and accepted before activation.
 
 ## Attribution
 

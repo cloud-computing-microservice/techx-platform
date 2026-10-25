@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$publisherTestState = @{ built = @(); present = @{}; account = '058114477594'; buildFails = $false; inspectionFails = $false }
+$publisherTestState = @{ built = @(); present = @{}; account = '058114477594'; buildFails = $false; inspectionFails = $false; dirty = $false; forbidGit = $false }
 $originalRevision = [Environment]::GetEnvironmentVariable('REVISION')
 $originalRegistry = [Environment]::GetEnvironmentVariable('REGISTRY')
 $manifestPath = Join-Path ([IO.Path]::GetTempPath()) "techx-release-test-$PID.json"
@@ -7,8 +7,9 @@ $manifestPath = Join-Path ([IO.Path]::GetTempPath()) "techx-release-test-$PID.js
 # These functions intercept all external calls made by the publisher. No AWS,
 # Docker, Git mutation or credentials are used by this regression suite.
 function git {
+  if ($publisherTestState.forbidGit) { throw 'Archive publishing must not inspect ambient Git.' }
   $global:LASTEXITCODE = 0
-  if ($args -contains 'status') { return }
+  if ($args -contains 'status') { if ($publisherTestState.dirty) { return ' M package.json' }; return }
   return ('a' * 40)
 }
 function aws {
@@ -68,6 +69,16 @@ try {
   $rejected = $false
   try { & "$PSScriptRoot/publish-ecr-images.ps1" -ExpectedAccountId '058114477594' | Out-Null } catch { $rejected = $_ -match 'identity' }
   Assert $rejected 'Wrong AWS account must be rejected.'
+  $publisherTestState.account = '058114477594'
+  $publisherTestState.dirty = $true
+  $rejected = $false
+  try { & "$PSScriptRoot/publish-ecr-images.ps1" -ExpectedAccountId '058114477594' | Out-Null } catch { $rejected = $_ -match 'Commit the reviewed' }
+  Assert $rejected 'The manual entry point must retain its clean-source guard.'
+  $publisherTestState.forbidGit = $true
+  $publisherTestState.present = @{ frontend = $true; catalog = $true; order = $true }
+  . (Join-Path $PSScriptRoot 'ecr-publisher-core.ps1')
+  $archiveResult = Invoke-TechxEcrPublish -SourceRoot (Split-Path -Parent $PSScriptRoot) -SourceSha ('a' * 40) -ExpectedAccountId '058114477594' | ConvertFrom-Json
+  Assert ($archiveResult.commit -eq ('a' * 40) -and $archiveResult.images.Count -eq 3) 'The authenticated archive caller must work without Git.'
   Write-Host 'Publisher regression tests passed: resume, no-op, manifest, access denial, build failure, account and environment.'
 } finally {
   Remove-Item -LiteralPath $manifestPath -Force -ErrorAction SilentlyContinue

@@ -35,6 +35,10 @@ if (-not (Test-Path -LiteralPath 'node_modules')) {
 }
 
 & "$PSScriptRoot\ui-hardcode-audit.ps1"
+python (Join-Path $PSScriptRoot 'test-prepare-chart-release.py')
+if ($LASTEXITCODE -ne 0) { throw 'Chart release contract tests failed.' }
+python (Join-Path $PSScriptRoot 'test-release-session.py')
+if ($LASTEXITCODE -ne 0) { throw 'Release session guard tests failed.' }
 
 foreach ($script in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1') {
   $tokens = $null
