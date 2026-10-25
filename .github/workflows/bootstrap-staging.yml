@@ -82,7 +82,7 @@ jobs:
           repositories: techx-chart
           permission-contents: write
           permission-pull-requests: write
-      - name: Propose exact cold manifest without merge authority
+      - name: Propose exact cold manifest for chart CI and review
         env:
           CONTROL_BUCKET: ${{ vars.TECHX_STATE_BUCKET }}
           GITHUB_TOKEN: ${{ github.token }}

@@ -281,6 +281,9 @@ updates an existing proposal branch. The immutable proposal receipt binds the
 subsequent selector to the PR head/tree as well as the exact three-image release.
 The source caller is implemented; the opening workflow, full orchestration,
 promotion/acceptance/rollback and live cloud verification remain incomplete.
+The App token has repository contents/PR write permissions; the fixed helper
+avoids merge operations, while main rulesets and promotion controls still need
+to be configured and accepted before activation.
 
 ## Attribution
 
