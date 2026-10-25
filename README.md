@@ -290,6 +290,16 @@ avoids merge operations. Main branch protection is configured, while the
 promotion/session gate and live token behavior still need acceptance before
 activation. Keep both automation flags false until those gates pass.
 
+Automated cold calls carry a protected dispatch identity. Every publish/proposal
+entry waits for the infra receipt binding its exact workflow run, session,
+execution and inputs before mutation; reruns cannot reuse it. The notification
+job then uses a separate infra-only Actions token to wake that existing session,
+including after a publish failure when GitHub runs the final job. It has no AWS
+credentials and forwards no stage or success conclusion. Configure the separate
+`LIFECYCLE_APP_ID`/`LIFECYCLE_APP_PRIVATE_KEY` for Actions write on infra/platform;
+the opening workflow checks both grants before reserving AWS work. Cancellation,
+notification delivery and the full workflow chain still need live acceptance.
+
 ## Attribution
 
 The visual direction and sample commerce-domain patterns are adapted selectively
