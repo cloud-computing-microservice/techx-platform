@@ -263,11 +263,24 @@ ancestor Git checkout. The core receives the authenticated full platform SHA and
 emits the same digest manifest used by normal releases.
 
 Cold publish requires the dedicated protected `staging-bootstrap` OIDC role, an
-APPLIED foundation, terminal SSM result, a live cleanup schedule and the separate
+APPLIED foundation, successful CodeBuild/SSM results, a live cleanup schedule and the separate
 `bootstrap-publish` heartbeat lease in PROVISIONING. Normal release still requires
 READY. The bootstrap role cannot create infrastructure or ECR repositories.
-Workflow wiring, chart release PR/pinned revision selection and cloud acceptance
-remain incomplete; keep automation disabled until the workspace plan gates pass.
+
+The gated `bootstrap-staging.yml` workflow accepts an existing session ID and
+immutable execution VersionId. It verifies the real first-attempt main run at the
+admitted platform SHA and the latest passing platform CI, then calls the infra
+archive publisher. Set up main-only `staging-bootstrap`,
+`AWS_BOOTSTRAP_PUBLISHER_ROLE_ARN`, `TECHX_STATE_BUCKET`, the exact reviewed
+`AUTOMATION_INFRA_SHA` and the chart-scoped release App before authorized activation.
+Keep `LIFECYCLE_ENABLED` false until the complete workspace acceptance gates pass.
+
+After publication, a separate step obtains the chart-only App token and proposes
+the two release files from the admitted baseline. It never merges, rebases or
+updates an existing proposal branch. The immutable proposal receipt binds the
+subsequent selector to the PR head/tree as well as the exact three-image release.
+The source caller is implemented; the opening workflow, full orchestration,
+promotion/acceptance/rollback and live cloud verification remain incomplete.
 
 ## Attribution
 
