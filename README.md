@@ -300,6 +300,25 @@ credentials and forwards no stage or success conclusion. Configure the separate
 the opening workflow checks both grants before reserving AWS work. Cancellation,
 notification delivery and the full workflow chain still need live acceptance.
 
+## Active release candidates (source only)
+
+The READY release publisher now uses the pinned infra helper
+`run_ready_release.py`. It verifies this actual main run's completed acceptance
+job, the active publisher job, the scoped OIDC identity, the accepted baseline,
+source ancestry, budget and cleanup schedule before taking the release lease.
+Both push and a new manual `Verify platform` run can request this path; workflow
+reruns, forks, stale source and closed sessions cannot publish it. Flags remain
+off by default.
+
+Before ECR publication the helper stores an immutable candidate intent. After
+checking the three exact repository/tag/digests and completed vulnerability
+scans, it pins the manifest and a session-specific chart proposal by S3
+VersionId/hash. Only the two release files can change; proposal retries recover
+the exact existing branch/PR without rebasing or merging. This source does not
+yet promote an active candidate to the running Application or replace its
+accepted baseline. Active promotion/acceptance/rollback and AWS integration
+remain unfinished; creating a proposal is not a successful deployment.
+
 ## Attribution
 
 The visual direction and sample commerce-domain patterns are adapted selectively

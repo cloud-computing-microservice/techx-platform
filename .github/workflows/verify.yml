@@ -13,9 +13,10 @@ jobs:
     uses: ./.github/workflows/ci-reusable.yml
   release:
     needs: acceptance
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AUTOMATION_ENABLED == 'true'
+    if: contains(fromJSON('["push","workflow_dispatch"]'), github.event_name) && github.ref == 'refs/heads/main' && github.run_attempt == 1 && vars.AUTOMATION_ENABLED == 'true'
     permissions:
       contents: read
+      actions: read
       id-token: write
     uses: ./.github/workflows/release-staging.yml
     secrets: inherit
