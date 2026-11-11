@@ -7,11 +7,19 @@ order lookup, plus a rewritten frontend README that documents the current folder
 structure, pages, BFF request flow, environment variables, local setup, checks,
 and screenshots.
 
+The branch also fixes the container image build: the Dockerfiles pinned
+`zlib=1.3.2-r1`, which no longer exists for the current Alpine 3.24 base image,
+so `docker buildx bake` failed before CI could run the application checks.
+
 ## Source revision
 
 - Base/merge revision: `49b4d6ab3280c857a40cf7c18d193ba4078bd8fd`
   (`49b4d6a Merge pull request #5 from cloud-computing-microservice/codex/ready-release-candidate`)
-- Change scope: `src/frontend/**` (working tree in this branch)
+- Branch: `issue/hung`
+- Commits:
+  - `feat(frontend): polish storefront UI states, add tests and docs`
+  - `fix(docker): upgrade zlib instead of pinning removed package version`
+- Change scope: `src/frontend/**` and the three service `Dockerfile`s
 
 ## Environment
 
@@ -59,6 +67,18 @@ Local stack used for screenshots and manual checks:
 - **Order confirmation:** added **Try again** for transient load failures while
   preserving the existing cached-order fallback.
 - **Loading states:** all full-page loading states now expose `role="status"`.
+
+### Container build / CI
+
+- Replaced the stale `apk add --no-cache zlib=1.3.2-r1` pin in the runtime stage
+  of all three images with `apk upgrade --no-cache zlib`.
+- The pinned `1.3.2-r1` package is no longer published for the Alpine 3.24 base
+  image (`node:22-alpine@sha256:0a7108...`), which made the image build fail with
+  `breaks: world[zlib=1.3.2-r1]` before any tests ran.
+- The new command keeps zlib at the latest patched revision without tying the
+  build to a package version that upstream can remove.
+- Verified `docker buildx bake catalog frontend order` succeeds and that all
+  three runtime images contain `zlib-1.4-r0`.
 
 ### Documentation
 
@@ -125,6 +145,7 @@ corresponding interactive states.
 | 8   | Keyboard navigation through header, catalog, cart, checkout          | Skip link, visible focus, Enter submission, logical tab order                                      | Pass   |
 | 9   | Inspect browser traffic                                              | Only same-origin `/api/*` requests; no `ORDER_API_KEY` in responses or bundles                     | Pass   |
 | 10  | Run required frontend checks                                         | Type check, 47 tests, and production build all pass                                                | Pass   |
+| 11  | Build all three container images                                     | `docker buildx bake` completes; runtime images contain a patched zlib                              | Pass   |
 
 ## Commands and logs
 
@@ -185,6 +206,22 @@ Route (app)
 ├ ƒ /product/[id]
 ├ ○ /products
 └ ƒ /readyz
+```
+
+Exit code: `0`.
+
+### Container image build
+
+```bash
+ORDER_API_KEY=local-demo-key docker buildx bake catalog frontend order
+```
+
+All three targets exported successfully:
+
+```text
+techx/frontend:local   zlib-1.4-r0
+techx/order:local      zlib-1.4-r0
+techx/catalog:local    zlib-1.4-r0
 ```
 
 Exit code: `0`.
