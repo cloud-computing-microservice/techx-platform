@@ -30,6 +30,25 @@ import {
 } from "@/lib/site-config";
 import { useStorefront } from "@/lib/StorefrontContext";
 
+function fieldMaxLength(field: CheckoutField): number {
+  switch (field) {
+    case "email":
+      return UI_LIMITS.emailCharacters;
+    case "name":
+      return UI_LIMITS.customerNameMaximum;
+    case "line1":
+      return UI_LIMITS.streetAddressCharacters;
+    case "line2":
+      return UI_LIMITS.optionalAddressCharacters;
+    case "city":
+      return UI_LIMITS.cityCharacters;
+    case "region":
+      return UI_LIMITS.regionCharacters;
+    case "postalCode":
+      return UI_LIMITS.postalCodeCharacters;
+  }
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, ready, clearCart } = useCart();
@@ -42,7 +61,7 @@ export default function CheckoutPage() {
 
   if (!ready)
     return (
-      <div className="page-loading" aria-busy="true">
+      <div className="page-loading" aria-busy="true" role="status">
         {CONTENT.common.loading}
       </div>
     );
@@ -81,15 +100,22 @@ export default function CheckoutPage() {
           name={field}
           type={field === "email" ? "email" : "text"}
           autoComplete={definition.autoComplete}
+          autoCapitalize={
+            field === "email"
+              ? "none"
+              : field === "region"
+                ? "characters"
+                : "words"
+          }
           inputMode={definition.inputMode}
           placeholder={definition.placeholder}
           value={form[field]}
           onChange={(event) => updateField(field, event.target.value)}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${field}-error` : undefined}
-          maxLength={
-            field === "line2" ? UI_LIMITS.optionalAddressCharacters : undefined
-          }
+          maxLength={fieldMaxLength(field)}
+          required={field !== "line2"}
+          disabled={submitting}
         />
         {error && (
           <span id={`${field}-error`} className="field-error">
@@ -155,7 +181,13 @@ export default function CheckoutPage() {
         <p>{CONTENT.checkout.intro}</p>
       </header>
       <div className="checkout-layout">
-        <form className="checkout-form" onSubmit={submit} noValidate>
+        <form
+          className="checkout-form"
+          onSubmit={submit}
+          noValidate
+          aria-busy={submitting}
+        >
+          <p className="form-hint">{CONTENT.checkout.requiredHint}</p>
           <section aria-labelledby="contact-heading">
             <div className="form-section-heading">
               <span>1</span>
@@ -173,8 +205,12 @@ export default function CheckoutPage() {
             <div className="form-grid address-grid">
               {CHECKOUT_FIELD_GROUPS.address.map(renderField)}
               <div className="form-field country-field">
-                <label>{CONTENT.checkout.country}</label>
-                <input value={CONTENT.checkout.countryValue} disabled />
+                <label htmlFor="country">{CONTENT.checkout.country}</label>
+                <input
+                  id="country"
+                  value={CONTENT.checkout.countryValue}
+                  disabled
+                />
               </div>
             </div>
           </section>
@@ -195,6 +231,11 @@ export default function CheckoutPage() {
                 {submitError} {CONTENT.checkout.submitErrorSuffix}
               </p>
             </div>
+          )}
+          {Object.keys(errors).length > 0 && (
+            <p className="form-hint form-hint-error" role="status">
+              {CONTENT.checkout.retryHint}
+            </p>
           )}
           <div className="checkout-actions">
             <Link className="btn btn-secondary" href={ROUTES.cart}>

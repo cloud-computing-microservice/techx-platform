@@ -75,7 +75,12 @@ export default function OrdersPage() {
         </div>
         <Icon name="package" size={48} />
       </div>
-      <form className="lookup-form" onSubmit={lookup} noValidate>
+      <form
+        className="lookup-form"
+        onSubmit={lookup}
+        noValidate
+        aria-busy={state === "loading"}
+      >
         <h2>{CONTENT.order.searchTitle}</h2>
         <label htmlFor="order-id">{CONTENT.order.id}</label>
         <div>
@@ -85,10 +90,13 @@ export default function OrdersPage() {
             onChange={(event) => {
               setOrderId(event.target.value);
               setError("");
+              if (state === "error") setState("idle");
             }}
             placeholder={CONTENT.order.placeholder}
             autoComplete="off"
+            autoCapitalize="none"
             spellCheck={false}
+            required
             aria-invalid={state === "error"}
             aria-describedby={
               state === "error" ? "lookup-error" : "lookup-help"
@@ -116,9 +124,11 @@ export default function OrdersPage() {
           </p>
         )}
       </form>
-      {state === "success" && order && (
-        <OrderDetails order={order} onCopy={copyId} copied={copied} compact />
-      )}
+      <div aria-live="polite">
+        {state === "success" && order && (
+          <OrderDetails order={order} onCopy={copyId} copied={copied} compact />
+        )}
+      </div>
       <section className="order-history" aria-labelledby="order-history-title">
         <div className="order-history-heading">
           <div>

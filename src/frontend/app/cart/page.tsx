@@ -19,7 +19,7 @@ export default function CartPage() {
 
   if (!ready)
     return (
-      <div className="page-loading" aria-busy="true">
+      <div className="page-loading" aria-busy="true" role="status">
         {CONTENT.common.loading}
       </div>
     );
