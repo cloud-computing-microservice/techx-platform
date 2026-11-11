@@ -43,6 +43,74 @@ describe("order pages", () => {
     expect(screen.getByText(cached.customer.emailMasked)).toBeInTheDocument();
   });
 
+  it("clears the invalid state as soon as the user edits the order id", async () => {
+    const user = userEvent.setup();
+    render(<OrdersPage />);
+    const input = screen.getByLabelText(CONTENT.order.id);
+
+    await user.type(input, "invalid");
+    await user.click(
+      screen.getByRole("button", { name: CONTENT.order.lookupAction }),
+    );
+    expect(input).toHaveAttribute("aria-invalid", "true");
+
+    await user.type(input, "x");
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a loading state while looking up an order", async () => {
+    const user = userEvent.setup();
+    let resolveLookup: (value: { order: typeof orderFixture }) => void = () =>
+      undefined;
+    mocks.getOrder.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveLookup = resolve;
+      }),
+    );
+    render(<OrdersPage />);
+
+    await user.type(screen.getByLabelText(CONTENT.order.id), orderFixture.id);
+    await user.click(
+      screen.getByRole("button", { name: CONTENT.order.lookupAction }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: CONTENT.order.lookingUp }),
+    ).toBeDisabled();
+
+    resolveLookup({ order: orderFixture });
+    expect(
+      await screen.findByLabelText(CONTENT.order.detailsLabel),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(orderFixture.customer.emailMasked),
+    ).toBeInTheDocument();
+  });
+
+  it("retries a failed confirmation load without losing the page", async () => {
+    const user = userEvent.setup();
+    mocks.getOrder
+      .mockRejectedValueOnce(
+        new ApiClientError(503, "DEPENDENCY_UNAVAILABLE", "Unavailable"),
+      )
+      .mockResolvedValueOnce({ order: orderFixture });
+
+    render(<OrderConfirmationPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: CONTENT.order.unavailable }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: CONTENT.common.retry }),
+    );
+
+    expect(
+      await screen.findByText(orderFixture.customer.emailMasked),
+    ).toBeInTheDocument();
+    expect(mocks.getOrder).toHaveBeenCalledTimes(2);
+  });
+
   it("validates lookup ids locally and presents a typed not-found error", async () => {
     const user = userEvent.setup();
     render(<OrdersPage />);
