@@ -48,7 +48,6 @@ export default function Sidebar(props: SidebarProps) {
       />
       <aside
         ref={panelRef}
-        id="product-filters"
         className={`filter-panel${props.isOpen ? " open" : ""}`}
         aria-label={CONTENT.catalog.productFilters}
       >
