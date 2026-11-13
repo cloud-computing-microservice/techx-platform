@@ -59,7 +59,6 @@ export default function CartItem({ item }: { item: CartItemType }) {
           type="button"
           className="text-button danger"
           onClick={() => removeItem(item.product.id)}
-          aria-label={CONTENT.cart.removeItem(item.product.name)}
         >
           {CONTENT.cart.remove}
         </button>

@@ -104,7 +104,6 @@ function ProductsContent() {
     filters.price,
     filters.availability,
   ].filter(Boolean).length;
-  const hasActiveFilters = Boolean(filters.query || activeFilterCount);
 
   return (
     <div className="catalog-page section-shell">
@@ -147,8 +146,6 @@ function ProductsContent() {
             className="btn btn-secondary filter-toggle"
             type="button"
             onClick={() => setFiltersOpen(true)}
-            aria-controls="product-filters"
-            aria-expanded={filtersOpen}
           >
             <Icon name="menu" size={17} />
             {CONTENT.catalog.filters}
@@ -157,15 +154,6 @@ function ProductsContent() {
           <p aria-live="polite">
             {CONTENT.catalog.resultCount(visibleProducts.length)}
           </p>
-          {hasActiveFilters && (
-            <button
-              className="text-button"
-              type="button"
-              onClick={clearFilters}
-            >
-              {CONTENT.catalog.reset}
-            </button>
-          )}
         </div>
         <label>
           <span>{CONTENT.catalog.sortBy}</span>
@@ -231,7 +219,7 @@ export default function ProductsPage() {
   return (
     <Suspense
       fallback={
-        <div className="page-loading" aria-busy="true" role="status">
+        <div className="page-loading" aria-busy="true">
           {CONTENT.common.loading}
         </div>
       }
