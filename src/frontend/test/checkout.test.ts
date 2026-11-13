@@ -22,8 +22,8 @@ describe("checkout contract", () => {
   it("validates user-visible fields and focuses on meaningful errors", () => {
     const errors = validateCheckout(EMPTY_CHECKOUT_FORM);
     expect(Object.keys(errors)).toEqual([
-      "email",
       "name",
+      "email",
       "line1",
       "city",
       "region",

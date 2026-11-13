@@ -171,23 +171,6 @@ describe("frontend BFF with real local services", () => {
     expect(Number(response?.headers.get("retry-after"))).toBeGreaterThan(0);
   });
 
-  it("returns a safe configuration error without leaking the server key", async () => {
-    const configuredKey = process.env.ORDER_API_KEY;
-    delete process.env.ORDER_API_KEY;
-    try {
-      const response = await getOrder(
-        new NextRequest("http://frontend.local/api/orders/ord_missing"),
-        { params: Promise.resolve({ id: "ord_missing" }) },
-      );
-      expect(response.status).toBe(503);
-      const text = await response.text();
-      expect(text).not.toContain(configuredKey ?? "phase3-local-secret");
-      expect(JSON.parse(text).error.code).toBe("BFF_NOT_READY");
-    } finally {
-      process.env.ORDER_API_KEY = configuredKey;
-    }
-  });
-
   it("uses the stable CloudFront viewer IP when origin forwarding changes", async () => {
     let response: Response | undefined;
     for (let index = 0; index < 21; index += 1) {

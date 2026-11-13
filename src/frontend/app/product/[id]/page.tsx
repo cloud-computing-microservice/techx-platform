@@ -20,8 +20,7 @@ import { useStorefront } from "@/lib/StorefrontContext";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { products, categories, catalogState, config, retryCatalog } =
-    useStorefront();
+  const { products, categories, catalogState, config } = useStorefront();
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -34,30 +33,10 @@ export default function ProductDetailPage() {
 
   if (catalogState === "loading")
     return (
-      <div className="page-loading" aria-busy="true" role="status">
+      <div className="page-loading" aria-busy="true">
         {CONTENT.common.loading}
       </div>
     );
-  if (catalogState === "error") {
-    return (
-      <div className="section-shell product-not-found">
-        <h1>{CONTENT.product.loadErrorTitle}</h1>
-        <p>{CONTENT.product.loadErrorBody}</p>
-        <div className="error-state-actions">
-          <button
-            className="btn btn-primary"
-            type="button"
-            onClick={retryCatalog}
-          >
-            {CONTENT.common.retry}
-          </button>
-          <Link className="btn btn-secondary" href={ROUTES.products}>
-            {CONTENT.common.continueShopping}
-          </Link>
-        </div>
-      </div>
-    );
-  }
   if (!product) {
     return (
       <div className="section-shell product-not-found">
@@ -117,7 +96,6 @@ export default function ProductDetailPage() {
                   className={selectedImage === index ? "active" : undefined}
                   onClick={() => setSelectedImage(index)}
                   aria-label={CONTENT.product.viewImage(index + 1)}
-                  aria-pressed={selectedImage === index}
                 >
                   <img src={image.src} alt="" width={640} height={480} />
                 </button>
@@ -157,9 +135,7 @@ export default function ProductDetailPage() {
             {!unavailable ? (
               <>
                 <div>
-                  <span className="purchase-label">
-                    {CONTENT.product.quantity}
-                  </span>
+                  <label>{CONTENT.product.quantity}</label>
                   <QuantityStepper
                     value={quantity}
                     onChange={setQuantity}

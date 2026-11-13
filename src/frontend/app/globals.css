@@ -1223,9 +1223,8 @@ h3 {
 
 .catalog-toolbar > div {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px 16px;
+  gap: 16px;
 }
 
 .catalog-toolbar p {
@@ -1466,8 +1465,7 @@ h3 {
   box-shadow: var(--shadow-sm);
 }
 
-.purchase-panel label,
-.purchase-label {
+.purchase-panel label {
   display: block;
   margin-bottom: 6px;
   font-size: 0.75rem;
@@ -1891,20 +1889,6 @@ h3 {
   gap: 16px;
 }
 
-.form-hint {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: 0.78rem;
-}
-
-.form-hint-error {
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--red-soft);
-  color: var(--red);
-  font-weight: 700;
-}
-
 .form-field {
   min-width: 0;
 }
@@ -2300,17 +2284,11 @@ h3 {
 }
 
 .confirmation-actions,
-.order-error > div,
-.error-state-actions {
+.order-error > div {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
   margin-top: 25px;
-}
-
-.checkout-form > .form-hint {
-  margin-bottom: -4px;
 }
 
 .page-loading {
@@ -2598,15 +2576,11 @@ h3 {
     border: 0;
     border-radius: 0;
     box-shadow: var(--shadow-lg);
-    visibility: hidden;
     transform: translateX(-102%);
-    transition:
-      transform 190ms ease,
-      visibility 190ms ease;
+    transition: transform 190ms ease;
   }
 
   .filter-panel.open {
-    visibility: visible;
     transform: translateX(0);
   }
 
@@ -2630,10 +2604,6 @@ h3 {
   .cart-layout,
   .checkout-layout {
     grid-template-columns: 1fr;
-  }
-
-  .checkout-layout > .cart-summary-panel {
-    order: -1;
   }
 
   .cart-summary-panel {
@@ -2790,15 +2760,13 @@ h3 {
 
   .checkout-actions,
   .confirmation-actions,
-  .order-error > div,
-  .error-state-actions {
+  .order-error > div {
     flex-direction: column-reverse;
   }
 
   .checkout-actions .btn,
   .confirmation-actions .btn,
-  .order-error .btn,
-  .error-state-actions .btn {
+  .order-error .btn {
     width: 100%;
   }
 

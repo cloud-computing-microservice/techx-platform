@@ -52,13 +52,13 @@ export function validateCheckout(form: CheckoutForm): CheckoutErrors {
   const errors: CheckoutErrors = {};
   const name = form.name.trim();
   const email = form.email.trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    errors.email = CONTENT.checkout.validation.email;
   if (
     name.length < UI_LIMITS.customerNameMinimum ||
     name.length > UI_LIMITS.customerNameMaximum
   )
     errors.name = CONTENT.checkout.validation.name;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    errors.email = CONTENT.checkout.validation.email;
   if (form.line1.trim().length < UI_LIMITS.streetAddressMinimum)
     errors.line1 = CONTENT.checkout.validation.line1;
   if (form.line2.trim().length > UI_LIMITS.optionalAddressCharacters)
