@@ -17,7 +17,7 @@ COPY src/frontend/app ./src/frontend/app
 COPY src/frontend/components ./src/frontend/components
 COPY src/frontend/lib ./src/frontend/lib
 COPY src/frontend/public ./src/frontend/public
-RUN npm run build -w @techx/frontend -- --webpack
+RUN npm run build -w @techx/frontend
 
 FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS runtime
 RUN apk upgrade --no-cache zlib

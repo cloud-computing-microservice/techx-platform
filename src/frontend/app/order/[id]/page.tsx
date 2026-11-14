@@ -23,10 +23,12 @@ export default function OrderConfirmationPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
     setState("loading");
+    setError("");
     getOrder(id)
       .then(({ order: loaded }) => {
         if (!active) return;
@@ -50,7 +52,7 @@ export default function OrderConfirmationPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [attempt, id]);
 
   async function copyId() {
     if (!order) return;
@@ -61,7 +63,7 @@ export default function OrderConfirmationPage() {
 
   if (state === "loading")
     return (
-      <div className="page-loading" aria-busy="true">
+      <div className="page-loading" aria-busy="true" role="status">
         {CONTENT.common.loading}
       </div>
     );
@@ -71,10 +73,17 @@ export default function OrderConfirmationPage() {
         <h1>{CONTENT.order.unavailable}</h1>
         <p>{error}</p>
         <div>
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={() => setAttempt((value) => value + 1)}
+          >
+            {CONTENT.common.retry}
+          </button>
           <Link className="btn btn-secondary" href={ROUTES.orders}>
             {CONTENT.order.lookupAnother}
           </Link>
-          <Link className="btn btn-primary" href={ROUTES.products}>
+          <Link className="btn btn-secondary" href={ROUTES.products}>
             {CONTENT.common.shopNow}
           </Link>
         </div>
