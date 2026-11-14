@@ -366,10 +366,10 @@ export const ORDER_ERROR_CONTENT: Record<string, string> = {
   NETWORK_ERROR:
     "Could not reach the order service. Check your connection and try again.",
   BFF_NOT_READY:
-    "Order lookup is temporarily unavailable. Try again in a moment.",
+    "Orders are temporarily unavailable. Try again in a moment.",
   INVALID_UPSTREAM_RESPONSE:
     "The order service returned an unexpected response. Try again.",
-  UNEXPECTED_ERROR: "Something went wrong. Check the order ID and try again.",
+  UNEXPECTED_ERROR: "Something went wrong. Review the information and try again.",
 };
 
 export const ORDER_STATUS_CONTENT = {

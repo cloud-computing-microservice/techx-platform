@@ -186,6 +186,8 @@ npm run build -w @techx/frontend   # Production Next.js build
 
 The build script uses Webpack in both local checks and Docker. This avoids the
 Turbopack Google font resolution failure observed with Next.js 16.4.2 in CI.
+Plus Jakarta Sans is bundled in `app/fonts/` with its SIL Open Font License and
+loaded through `next/font/local`, so builds do not fetch Google Fonts.
 
 To inspect the production build:
 

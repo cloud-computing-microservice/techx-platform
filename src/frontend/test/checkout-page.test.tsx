@@ -124,34 +124,37 @@ describe("checkout page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps the form available after an API error", async () => {
-    const user = userEvent.setup();
-    const { ApiClientError } = await import("@/lib/api-client");
-    api.createOrder.mockRejectedValueOnce(
-      new ApiClientError(
-        503,
-        "DEPENDENCY_UNAVAILABLE",
-        "Dependency unavailable",
-      ),
-    );
-    renderCheckout();
-    await screen.findByRole("heading", { name: CONTENT.checkout.contact });
-    await fillCheckoutForm();
+  it.each([
+    ["DEPENDENCY_UNAVAILABLE", /temporarily unavailable/i],
+    ["BFF_NOT_READY", /orders are temporarily unavailable/i],
+    ["UNEXPECTED_ERROR", /review the information/i],
+  ] as const)(
+    "keeps the form available after %s",
+    async (code, expectedMessage) => {
+      const user = userEvent.setup();
+      const { ApiClientError } = await import("@/lib/api-client");
+      api.createOrder.mockRejectedValueOnce(
+        new ApiClientError(503, code, "Dependency unavailable"),
+      );
+      renderCheckout();
+      await screen.findByRole("heading", { name: CONTENT.checkout.contact });
+      await fillCheckoutForm();
 
-    await user.click(
-      screen.getByRole("button", { name: CONTENT.checkout.placeOrder }),
-    );
+      await user.click(
+        screen.getByRole("button", { name: CONTENT.checkout.placeOrder }),
+      );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /temporarily unavailable/i,
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      CONTENT.checkout.submitErrorSuffix,
-    );
-    expect(
-      screen.getByRole("button", { name: CONTENT.checkout.placeOrder }),
-    ).toBeEnabled();
-  });
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        expectedMessage,
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        CONTENT.checkout.submitErrorSuffix,
+      );
+      expect(
+        screen.getByRole("button", { name: CONTENT.checkout.placeOrder }),
+      ).toBeEnabled();
+    },
+  );
 
   it("submits a valid order and clears the cart", async () => {
     const user = userEvent.setup();

@@ -23,6 +23,8 @@
   The main content accepts programmatic focus for the keyboard skip link.
 - Local and Docker builds use the same Webpack build script to avoid the
   Next.js 16.4.2 Turbopack Google font resolution failure.
+- Plus Jakarta Sans is bundled with its SIL Open Font License and loaded via
+  `next/font/local`; builds no longer depend on Google Fonts responses.
 - README documents folder structure, routes, setup, server configuration,
   checks, screenshots, and browser → BFF → API flow. Store config correctly
   uses `ORDER_API_URL`, not `CATALOG_API_URL`.

@@ -13,9 +13,9 @@ Recorded on 2026-11-14. See [scope and environment](PR_DESCRIPTION.md).
 
 
  Test Files  16 passed (16)
-      Tests  49 passed (49)
-   Start at  09:34:05
-   Duration  9.68s (transform 1.59s, setup 13.30s, import 8.01s, tests 12.53s, environment 30.00s)
+      Tests  51 passed (51)
+   Start at  09:39:27
+   Duration  13.40s (transform 1.87s, setup 16.66s, import 8.44s, tests 16.59s, environment 36.53s)
 ```
 
 ## Production build
@@ -25,18 +25,18 @@ Recorded on 2026-11-14. See [scope and environment](PR_DESCRIPTION.md).
 > next build --webpack
 
 ▲ Next.js 16.4.2 (webpack)
-✓ Running next.config.mjs took 26ms
+✓ Running next.config.mjs took 24ms
 
   Creating an optimized production build ...
-✓ Compiled successfully in 3.2s
+✓ Compiled successfully in 2.9s
   Running TypeScript ...
-  Finished TypeScript in 2.7s ...
+  Finished TypeScript in 2.9s ...
   Collecting page data using 11 workers ...
   Generating static pages using 11 workers (0/12) ...
   Generating static pages using 11 workers (3/12)
   Generating static pages using 11 workers (6/12)
   Generating static pages using 11 workers (9/12)
-✓ Generating static pages using 11 workers (12/12) in 1087ms
+✓ Generating static pages using 11 workers (12/12) in 1120ms
   Finalizing page optimization ...
   Collecting build traces ...
 
@@ -81,9 +81,22 @@ PASS mobile: catalog error and retry
 PASS mobile: same-origin API requests and browser key boundary
 ```
 
+## Container build
+
+`docker buildx bake frontend --set frontend.tags=techx/frontend:issue6-qa --load`
+completed with exit 0 after bundling Plus Jakarta Sans locally. The Webpack
+compile and standalone image export both succeeded. Required CI verifies the
+complete container stack on the final PR head.
+
 ## Additional results
 
-- TypeScript: exit 0.
+- TypeScript, repository formatting, lint and `git diff --check`: exit 0.
 - Static browser assets: no occurrence of the dummy build-time API-key value.
-- Browser checks include image loading, horizontal overflow, configured font, keyboard focus, same-origin fetch/XHR and response/request key checks.
-- Required repository acceptance CI also runs format, lint, backend tests, DynamoDB Local and container acceptance. Consult the replacement PR checks for its exact head.
+- Browser checks include image loading, horizontal overflow, configured font,
+  keyboard focus, same-origin fetch/XHR and response/request key checks.
+- The initial replacement PR CI found a Google font loader error in Docker;
+  the correction bundles the same typeface with its license and removes the
+  build-time dependency on Google Fonts responses. No failing check was bypassed.
+- Required acceptance CI also runs backend tests, DynamoDB Local and the
+  container smoke, resilience, recovery, soak and runtime audit suites. Consult
+  the replacement PR checks for its exact head and complete logs.
