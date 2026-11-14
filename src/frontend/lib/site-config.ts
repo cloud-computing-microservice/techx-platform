@@ -365,11 +365,11 @@ export const ORDER_ERROR_CONTENT: Record<string, string> = {
     "The order service is temporarily unavailable. Try again in a moment.",
   NETWORK_ERROR:
     "Could not reach the order service. Check your connection and try again.",
-  BFF_NOT_READY:
-    "Orders are temporarily unavailable. Try again in a moment.",
+  BFF_NOT_READY: "Orders are temporarily unavailable. Try again in a moment.",
   INVALID_UPSTREAM_RESPONSE:
     "The order service returned an unexpected response. Try again.",
-  UNEXPECTED_ERROR: "Something went wrong. Review the information and try again.",
+  UNEXPECTED_ERROR:
+    "Something went wrong. Review the information and try again.",
 };
 
 export const ORDER_STATUS_CONTENT = {
