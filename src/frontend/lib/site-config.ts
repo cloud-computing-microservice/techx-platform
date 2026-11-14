@@ -67,10 +67,14 @@ export const CHECKOUT_FIELD_GROUPS = {
 export const UI_LIMITS = {
   regionCharacters: 2,
   optionalAddressCharacters: 120,
+  emailCharacters: 254,
   customerNameMinimum: 2,
   customerNameMaximum: 80,
+  streetAddressCharacters: 120,
   streetAddressMinimum: 3,
+  cityCharacters: 80,
   cityMinimum: 2,
+  postalCodeCharacters: 10,
   cartPreviewItems: 4,
   desktopNavigationItems: 4,
 } as const;
@@ -214,6 +218,7 @@ export const CONTENT = {
     availableNow: "Available now",
     applyFilters: "View results",
     clear: "Clear all",
+    reset: "Reset",
     noResults: "No gear matches those filters",
     noResultsBody: "Clear a filter or try a broader search.",
     sortBy: "Sort by",
@@ -235,6 +240,9 @@ export const CONTENT = {
     notFound: "Product not found",
     notFoundBody:
       "The product may have moved or no longer belongs to this catalog.",
+    loadErrorTitle: "This product could not be loaded",
+    loadErrorBody:
+      "The catalog is temporarily unavailable. Try again without losing your place.",
     save: (percent: number) => `Save ${percent}%`,
     lowStock: (count: number) => `Only ${count} available.`,
     quantityFor: (name: string) => `Quantity for ${name}`,
@@ -270,6 +278,7 @@ export const CONTENT = {
     safetyNote: "No card details are requested during checkout.",
     unitPrice: (price: string) => `${price} each`,
     remove: "Remove",
+    removeItem: (name: string) => `Remove ${name} from cart`,
   },
   checkout: {
     title: "Checkout",
@@ -289,8 +298,11 @@ export const CONTENT = {
     country: "Country",
     countryValue: "United States",
     submitErrorTitle: "Order could not be placed",
-    submitErrorSuffix: "Your cart and form are still here.",
+    submitErrorSuffix:
+      "Your cart and form are still here. Review the message and try again.",
     fallbackError: "The order could not be placed.",
+    requiredHint: "All fields are required unless marked optional.",
+    retryHint: "Check the highlighted fields, then place the order again.",
     validation: {
       name: "Enter a name from 2 to 80 characters.",
       email: "Enter a valid email address.",
@@ -349,7 +361,15 @@ export const ORDER_ERROR_CONTENT: Record<string, string> = {
   CATALOG_UNAVAILABLE: "Product availability could not be checked. Try again.",
   RATE_LIMITED: "Too many attempts. Wait briefly and try again.",
   ORDER_NOT_FOUND: "The order was not found or has expired.",
-  DEPENDENCY_UNAVAILABLE: "The order service is temporarily unavailable.",
+  DEPENDENCY_UNAVAILABLE:
+    "The order service is temporarily unavailable. Try again in a moment.",
+  NETWORK_ERROR:
+    "Could not reach the order service. Check your connection and try again.",
+  BFF_NOT_READY: "Orders are temporarily unavailable. Try again in a moment.",
+  INVALID_UPSTREAM_RESPONSE:
+    "The order service returned an unexpected response. Try again.",
+  UNEXPECTED_ERROR:
+    "Something went wrong. Review the information and try again.",
 };
 
 export const ORDER_STATUS_CONTENT = {
