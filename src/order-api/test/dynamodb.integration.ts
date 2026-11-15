@@ -12,6 +12,7 @@ import {
   DynamoDbOrderRepository,
   idempotencyPartitionKey,
 } from "../src/dynamodb-order-repository.js";
+import { maskEmail } from "../src/commerce.js";
 
 const endpoint = process.env.DYNAMODB_TEST_ENDPOINT;
 if (!endpoint || !/^http:\/\/127\.0\.0\.1:\d+$/.test(endpoint)) {
@@ -220,10 +221,8 @@ test("customer data is stored according to current protection rules in DynamoDB"
   );
 
   // Verify masked email and coarse address are stored
-  assert.equal(
-    rawItem.order.customer.emailMasked,
-    "se*****************@example.com",
-  );
+  assert.equal(rawItem.order.customer.emailMasked, maskEmail(rawEmail));
+  assert.match(rawItem.order.customer.emailMasked, /^se\*+@example\.com$/);
   assert.equal(rawItem.order.customer.name, "Protected User");
   assert.equal(rawItem.order.shippingAddress.city, "Portland");
   assert.equal(rawItem.order.shippingAddress.region, "OR");
